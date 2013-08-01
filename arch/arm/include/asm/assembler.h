@@ -82,11 +82,15 @@
  */
 #if __LINUX_ARM_ARCH__ >= 6
 	.macro	disable_irq_notrace
-	cpsid	i
+	stmdb   sp!, {r0-r3, ip, lr}
+	bl	irq_disable_asm
+	ldmia	sp!, {r0-r3, ip, lr}
 	.endm
 
 	.macro	enable_irq_notrace
-	cpsie	i
+	stmdb   sp!, {r0-r3, ip, lr}
+	bl	irq_enable_asm
+	ldmia	sp!, {r0-r3, ip, lr}
 	.endm
 #else
 	.macro	disable_irq_notrace

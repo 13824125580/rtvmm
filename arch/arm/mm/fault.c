@@ -255,6 +255,10 @@ out:
 	return fault;
 }
 
+#ifdef CONFIG_ARM_VMM
+#include <vmm/vmm.h>
+#endif
+
 static int __kprobes
 do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
@@ -267,6 +271,11 @@ do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 
 	if (notify_page_fault(regs, fsr))
 		return 0;
+
+#ifdef CONFIG_ARM_VMMX
+	WARN(HOST_VMM_ADDR_BEGIN < regs->ARM_pc &&
+	       regs->ARM_pc < HOST_VMM_ADDR_END);
+#endif
 
 	tsk = current;
 	mm  = tsk->mm;

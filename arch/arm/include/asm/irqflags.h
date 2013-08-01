@@ -9,34 +9,56 @@
  * CPU interrupt mask handling.
  */
 #if __LINUX_ARM_ARCH__ >= 6
+#include <vmm/vmm.h> /* VMM only support ARMv7 right now */
 
 static inline unsigned long arch_local_irq_save(void)
 {
 	unsigned long flags;
 
-	asm volatile(
-		"	mrs	%0, cpsr	@ arch_local_irq_save\n"
-		"	cpsid	i"
-		: "=r" (flags) : : "memory", "cc");
+	if (vmm_status)
+	{
+		flags = vmm_save_virq();
+	}
+	else
+	{
+		asm volatile(
+			"	mrs	%0, cpsr	@ arch_local_irq_save\n"
+			"	cpsid	i"
+			: "=r" (flags) : : "memory", "cc");
+	}
 	return flags;
 }
 
 static inline void arch_local_irq_enable(void)
 {
-	asm volatile(
-		"	cpsie i			@ arch_local_irq_enable"
-		:
-		:
-		: "memory", "cc");
+	if (vmm_status)
+	{
+		vmm_enable_virq();
+	}
+	else
+	{
+		asm volatile(
+			"	cpsie i			@ arch_local_irq_enable"
+			:
+			:
+			: "memory", "cc");
+	}
 }
 
 static inline void arch_local_irq_disable(void)
 {
-	asm volatile(
-		"	cpsid i			@ arch_local_irq_disable"
-		:
-		:
-		: "memory", "cc");
+	if (vmm_status)
+	{
+		vmm_disable_virq();
+	}
+	else
+	{
+		asm volatile(
+			"	cpsid i			@ arch_local_irq_disable"
+			:
+			:
+			: "memory", "cc");
+	}
 }
 
 #define local_fiq_enable()  __asm__("cpsie f	@ __stf" : : : "memory", "cc")
@@ -128,9 +150,17 @@ static inline void arch_local_irq_disable(void)
 static inline unsigned long arch_local_save_flags(void)
 {
 	unsigned long flags;
-	asm volatile(
-		"	mrs	%0, cpsr	@ local_save_flags"
-		: "=r" (flags) : : "memory", "cc");
+
+	if (vmm_status)
+	{
+		flags = vmm_return_virq();
+	}
+	else
+	{
+		asm volatile(
+			"	mrs	%0, cpsr	@ local_save_flags"
+			: "=r" (flags) : : "memory", "cc");
+	}
 	return flags;
 }
 
@@ -139,15 +169,25 @@ static inline unsigned long arch_local_save_flags(void)
  */
 static inline void arch_local_irq_restore(unsigned long flags)
 {
-	asm volatile(
-		"	msr	cpsr_c, %0	@ local_irq_restore"
-		:
-		: "r" (flags)
-		: "memory", "cc");
+	if (vmm_status)
+	{
+		vmm_restore_virq(flags);
+	}
+	else
+	{
+		asm volatile(
+			"	msr	cpsr_c, %0	@ local_irq_restore"
+			:
+			: "r" (flags)
+			: "memory", "cc");
+	}
 }
 
 static inline int arch_irqs_disabled_flags(unsigned long flags)
 {
+	if (vmm_status)
+		return (flags == 0x01);
+
 	return flags & PSR_I_BIT;
 }
 

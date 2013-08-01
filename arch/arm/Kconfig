@@ -1164,6 +1164,7 @@ config ARM_TIMER_SP804
 	select HAVE_SCHED_CLOCK
 
 source arch/arm/mm/Kconfig
+source arch/arm/vmm/Kconfig
 
 config ARM_NR_BANKS
 	int

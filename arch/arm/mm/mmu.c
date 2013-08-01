@@ -294,6 +294,20 @@ static struct mem_type mem_types[] = {
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
 	},
+#ifdef CONFIG_ARM_VMM
+	[MT_RTVMM] = {
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		.prot_l1   = PMD_TYPE_TABLE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
+		.domain    = DOMAIN_RTVMM,
+	},
+	[MT_RTVMM_SHARE] = {
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		.prot_l1   = PMD_TYPE_TABLE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE,
+		.domain    = DOMAIN_RTVMM_SHR,
+	},
+#endif
 };
 
 const struct mem_type *get_mem_type(unsigned int type)
@@ -450,6 +464,9 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_DEVICE_CACHED].prot_pte |= L_PTE_SHARED;
 			mem_types[MT_MEMORY].prot_sect |= PMD_SECT_S;
 			mem_types[MT_MEMORY].prot_pte |= L_PTE_SHARED;
+#ifdef CONFIG_ARM_VMM
+			/* FIXME */
+#endif
 			mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_SHARED;
 			mem_types[MT_MEMORY_NONCACHED].prot_sect |= PMD_SECT_S;
 			mem_types[MT_MEMORY_NONCACHED].prot_pte |= L_PTE_SHARED;
@@ -503,6 +520,12 @@ static void __init build_mem_type_table(void)
 	mem_types[MT_HIGH_VECTORS].prot_l1 |= ecc_mask;
 	mem_types[MT_MEMORY].prot_sect |= ecc_mask | cp->pmd;
 	mem_types[MT_MEMORY].prot_pte |= kern_pgprot;
+#ifdef CONFIG_ARM_VMM
+	mem_types[MT_RTVMM].prot_sect |= ecc_mask | cp->pmd;
+	mem_types[MT_RTVMM].prot_pte |= kern_pgprot;
+	mem_types[MT_RTVMM_SHARE].prot_sect |= ecc_mask | cp->pmd;
+	mem_types[MT_RTVMM_SHARE].prot_pte |= kern_pgprot;
+#endif
 	mem_types[MT_MEMORY_DMA_READY].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_NONCACHED].prot_sect |= ecc_mask;
 	mem_types[MT_ROM].prot_sect |= cp->pmd;
@@ -1148,6 +1171,27 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	map.virtual = FLUSH_BASE_MINICACHE;
 	map.length = SZ_1M;
 	map.type = MT_MINICLEAN;
+	create_mapping(&map);
+#endif
+
+	/*
+	 * Create mappings for RT-Thread VMM and it's shared memory with Linux
+	 */
+#ifdef CONFIG_ARM_VMM
+	/* the TEXCB attribute is not right yet */
+	/* shared memory region comes first */
+	map.pfn = __phys_to_pfn(virt_to_phys((void*)HOST_VMM_ADDR_BEGIN));
+	map.virtual = HOST_VMM_ADDR_BEGIN;
+	map.length = CONFIG_RTVMM_SHARED_SIZE;
+	map.type = MT_RTVMM_SHARE;
+	create_mapping(&map);
+
+	/* vmm private region comes next */
+	map.pfn = __phys_to_pfn(virt_to_phys((void*)HOST_VMM_ADDR_BEGIN
+					     + CONFIG_RTVMM_SHARED_SIZE));
+	map.virtual = HOST_VMM_ADDR_BEGIN + CONFIG_RTVMM_SHARED_SIZE;
+	map.length = CONFIG_HOST_VMM_SIZE - CONFIG_RTVMM_SHARED_SIZE;
+	map.type = MT_RTVMM;
 	create_mapping(&map);
 #endif
 

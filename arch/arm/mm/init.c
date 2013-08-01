@@ -34,6 +34,10 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#ifdef CONFIG_ARM_VMM
+#include <vmm/vmm.h>
+#endif
+
 #include "mm.h"
 
 static unsigned long phys_initrd_start __initdata = 0;
@@ -337,6 +341,10 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 
 	for (i = 0; i < mi->nr_banks; i++)
 		memblock_add(mi->bank[i].start, mi->bank[i].size);
+
+#ifdef CONFIG_ARM_VMM
+	memblock_reserve(__pa(HOST_VMM_ADDR_BEGIN), HOST_VMM_ADDR_END - HOST_VMM_ADDR_BEGIN);
+#endif
 
 	/* Register the kernel text, kernel data and initrd with memblock. */
 #ifdef CONFIG_XIP_KERNEL

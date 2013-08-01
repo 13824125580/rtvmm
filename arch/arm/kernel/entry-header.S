@@ -75,7 +75,11 @@
 
 #ifndef CONFIG_THUMB2_KERNEL
 	.macro	svc_exit, rpsr
-	msr	spsr_cxsf, \rpsr
+	cpsid   i
+	mov     r0, \rpsr
+	bl      vmm_restore_virq_asm            @ restore the IRQ to emulate
+	                                        @ the behavior of ldmia {}^
+	msr	spsr_cxsf, r0
 #if defined(CONFIG_CPU_V6)
 	ldr	r0, [sp]
 	strex	r1, r2, [sp]			@ clear the exclusive monitor
@@ -90,6 +94,10 @@
 
 	.macro	restore_user_regs, fast = 0, offset = 0
 	ldr	r1, [sp, #\offset + S_PSR]	@ get calling cpsr
+	@ protect the spsr *and* stack we push the registers into this stack
+	@ and if the sp is not point to the bottom of the stack, IRQ should be
+	@ disabled.
+	cpsid   i
 	ldr	lr, [sp, #\offset + S_PC]!	@ get pc
 	msr	spsr_cxsf, r1			@ save in spsr_svc
 #if defined(CONFIG_CPU_V6)
@@ -105,6 +113,11 @@
 	mov	r0, r0				@ ARMv5T and earlier require a nop
 						@ after ldm {}^
 	add	sp, sp, #S_FRAME_SIZE - S_PC
+	@ TODO: in some conditions the call to vmm_on_ret_to_usr is useless.
+	stmdb   sp!, {r0-r3, ip, lr}
+	mrs     r0, spsr                        @ debug code
+	bl      vmm_on_ret_to_usr
+	ldmia	sp!, {r0-r3, ip, lr}
 	movs	pc, lr				@ return & move spsr_svc into cpsr
 	.endm
 

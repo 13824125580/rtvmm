@@ -44,6 +44,13 @@
 #define DOMAIN_IO	0
 #endif
 
+#ifdef CONFIG_ARM_VMM
+/* RT-Thread VMM memory space */
+#define DOMAIN_RTVMM      3
+/* shared memory with VMM and Linux */
+#define DOMAIN_RTVMM_SHR  4
+#endif
+
 /*
  * Domain types
  */

@@ -1,0 +1,49 @@
+menu "RT-Thread VMM Features"
+
+# ARM-VMM
+config ARM_VMM
+	bool "Support RT-Thread VMM on ARM Cortex-A8"
+	depends on MACH_REALVIEW_PBA8
+	help
+	  RT-Thread VMM implementation on ARM Cortex-A8
+
+	  Say Y if you want support for the RT-Thread VMM.
+	  Otherwise, say N.
+
+if SOC_AM33XX
+config HOST_VMM_ADDR_END
+	hex "End address of VMM"
+	depends on ARM_VMM
+	default 0xE0000000
+	help
+	  The end address of VMM space. Normally, it's the
+	  end address of DDR memory.
+endif
+
+if MACH_REALVIEW_PBA8
+config HOST_VMM_ADDR_END
+	hex "End address of VMM"
+	depends on ARM_VMM
+	default 0xE0000000
+	help
+	  The end address of VMM space. Normally, it's the
+	  end address of DDR memory.
+endif
+
+config HOST_VMM_SIZE
+	hex "Size of VMM space"
+	depends on ARM_VMM
+	default 0x400000
+	help
+	  The size of VMM space.
+
+config RTVMM_SHARED_SIZE
+	hex "Size of shared memory space between rt-vmm and Linux"
+	depends on ARM_VMM
+	default 0x100000
+	help
+	  The size of shared memory space between rt-vmm and Linux. This shared
+	  space is within the total size of the HOST_VMM_SIZE. So it is should
+	  be smaller than HOST_VMM_SIZE.
+
+endmenu

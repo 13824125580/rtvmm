@@ -349,6 +349,9 @@ ENTRY(vector_swi)
 	str	lr, [sp, #S_PC]			@ Save calling PC
 	str	r8, [sp, #S_PSR]		@ Save CPSR
 	str	r0, [sp, #S_OLD_R0]		@ Save OLD_R0
+	stmdb   sp!, {r0-r3, ip, lr}
+	bl	vmm_switch_nohwirq_to_novirq
+	ldmia	sp!, {r0-r3, ip, lr}
 	zero_fp
 
 	/*

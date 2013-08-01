@@ -1,0 +1,13 @@
+#ifndef __INTC_H__
+#define __INTC_H__
+
+#define OMAP34XX_IC_BASE	0x48200000
+
+#define INTC_SIR_SET0		0x0090
+#define INTC_MIR_CLEAR0		0x0088
+
+#define OMAP2_L4_IO_OFFSET	0xb2000000
+#define OMAP2_L4_IO_ADDRESS(pa)	IOMEM((pa) + OMAP2_L4_IO_OFFSET) /* L4 */
+#define OMAP3_IRQ_BASE		OMAP2_L4_IO_ADDRESS(OMAP34XX_IC_BASE)
+
+#endif

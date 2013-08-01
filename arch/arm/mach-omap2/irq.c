@@ -23,6 +23,10 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 
+#ifdef CONFIG_ARM_VMM
+#include <vmm/vmm.h>
+#endif
+
 #include "soc.h"
 #include "iomap.h"
 #include "common.h"
@@ -222,6 +226,14 @@ void __init ti81xx_init_irq(void)
 static inline void omap_intc_handle_irq(void __iomem *base_addr, struct pt_regs *regs)
 {
 	u32 irqnr;
+
+#ifdef CONFIG_ARM_VMM
+	if (vmm_get_status())
+	{
+		vmm_irq_handle(base_addr, domain, regs);
+		return;
+	}
+#endif
 
 	do {
 		irqnr = readl_relaxed(base_addr + 0x98);

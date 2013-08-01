@@ -45,6 +45,11 @@
 #include <asm/mach/irq.h>
 #include <asm/hardware/gic.h>
 
+#ifdef CONFIG_ARM_VMM
+#include <vmm/vmm.h>
+#include "../vmm/vmm_virhw.h"
+#endif
+
 union gic_base {
 	void __iomem *common_base;
 	void __percpu __iomem **percpu_base;
@@ -276,12 +281,72 @@ static int gic_set_wake(struct irq_data *d, unsigned int on)
 #define gic_set_wake	NULL
 #endif
 
+#ifdef CONFIG_ARM_VMM
+void vmm_irq_handle(struct gic_chip_data *gic, struct pt_regs *regs)
+{
+	unsigned long flags;
+	struct vmm_context* _vmm_context;
+
+	_vmm_context = vmm_context_get();
+
+	while (_vmm_context->virq_pended) {
+		int index;
+
+		flags = vmm_irq_save();
+		_vmm_context->virq_pended = 0;
+		vmm_irq_restore(flags);
+
+		/* get the pending interrupt */
+		for (index = 0; index < IRQS_NR_32; index++) {
+			int pdbit;
+
+			for (pdbit = __builtin_ffs(_vmm_context->virq_pending[index]);
+			     pdbit != 0;
+			     pdbit = __builtin_ffs(_vmm_context->virq_pending[index])) {
+				unsigned long inner_flag;
+				int irqnr, oirqnr;
+
+				pdbit--;
+
+				inner_flag = vmm_irq_save();
+				_vmm_context->virq_pending[index] &= ~(1 << pdbit);
+				vmm_irq_restore(inner_flag);
+
+				oirqnr = pdbit + index * 32;
+				if (likely(oirqnr > 15 && oirqnr < 1021)) {
+					irqnr = irq_find_mapping(gic->domain, oirqnr);
+					handle_IRQ(irqnr, regs);
+				} else if (oirqnr < 16) {
+					/* soft IRQs are EOIed by the host. */
+#ifdef CONFIG_SMP
+					handle_IPI(oirqnr, regs);
+#endif
+				}
+				/* umask interrupt */
+				/* FIXME: maybe we don't need this */
+				writel_relaxed(1 << (oirqnr % 32),
+					       gic_data_dist_base(gic)
+					       + GIC_DIST_ENABLE_SET
+					       + (oirqnr / 32) * 4);
+
+			}
+		}
+	}
+}
+#endif
+
 asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 {
 	u32 irqstat, irqnr;
 	struct gic_chip_data *gic = &gic_data[0];
 	void __iomem *cpu_base = gic_data_cpu_base(gic);
 
+#ifdef CONFIG_ARM_VMM
+	if (vmm_get_status()) {
+		vmm_irq_handle(gic, regs);
+		return;
+	}
+#endif
 	do {
 		irqstat = readl_relaxed(cpu_base + GIC_CPU_INTACK);
 		irqnr = irqstat & ~0x1c00;
@@ -777,7 +842,7 @@ void __cpuinit gic_secondary_init(unsigned int gic_nr)
 	gic_cpu_init(&gic_data[gic_nr]);
 }
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_ARM_VMM)
 void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
 	int cpu;

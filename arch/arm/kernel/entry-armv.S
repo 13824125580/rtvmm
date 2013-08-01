@@ -182,6 +182,15 @@ ENDPROC(__und_invalid)
 	@
 	stmia	r7, {r2 - r6}
 
+	stmdb   sp!, {r0-r3, ip, lr}
+	mov     r0, r5
+	add     r1, sp, #4*6
+	bl      vmm_save_virq_spsr_asm
+	mov     r5, r0
+	bl      vmm_switch_nohwirq_to_novirq
+	ldmia   sp!, {r0-r3, ip, lr}
+	str     r5, [sp, #S_PSR]              @ fix the pushed SPSR
+
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
@@ -208,6 +217,23 @@ __dabt_svc:
  UNWIND(.fnend		)
 ENDPROC(__dabt_svc)
 
+	.macro	svc_exit_irq, rpsr
+	cpsid   i
+	msr	spsr_cxsf, \rpsr
+	mov     r0, \rpsr
+	bl      vmm_on_svc_exit_irq
+#if defined(CONFIG_CPU_V6)
+	ldr	r0, [sp]
+	strex	r1, r2, [sp]			@ clear the exclusive monitor
+	ldmib	sp, {r1 - pc}^			@ load r1 - pc, cpsr
+#elif defined(CONFIG_CPU_32v6K)
+	clrex					@ clear the exclusive monitor
+	ldmia	sp, {r0 - pc}^			@ load r0 - pc, cpsr
+#else
+	ldmia	sp, {r0 - pc}^			@ load r0 - pc, cpsr
+#endif
+	.endm
+
 	.align	5
 __irq_svc:
 	svc_entry
@@ -228,7 +254,7 @@ __irq_svc:
 	@ the first place, so there's no point checking the PSR I bit.
 	bl	trace_hardirqs_on
 #endif
-	svc_exit r5				@ return from exception
+	svc_exit_irq r5				@ return from exception
  UNWIND(.fnend		)
 ENDPROC(__irq_svc)
 
@@ -392,6 +418,8 @@ ENDPROC(__pabt_svc)
 	@ Clear FP to mark the first stack frame
 	@
 	zero_fp
+
+	bl      vmm_switch_nohwirq_to_novirq
 
 #ifdef CONFIG_IRQSOFF_TRACER
 	bl	trace_hardirqs_off
