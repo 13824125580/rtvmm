@@ -858,6 +858,13 @@ void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	 */
 	dsb();
 
+	/*
+	 * On UP system, realview-pb-a8 for example, the CPU mask is empty. The
+	 * softirq are always handled on CPU0.
+	 */
+	if (map == 0) {
+		map = 1;
+	}
 	/* this always happens on GIC0 */
 	writel_relaxed(map << 16 | irq, gic_data_dist_base(&gic_data[0]) + GIC_DIST_SOFTINT);
 }
